@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-keenable",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Keenable web search + page fetch nodes for n8n. Keyless by default (1,000 req/hour); an API key raises the limits.",
   "license": "MIT",
   "author": {
