@@ -14,7 +14,7 @@
 import { isIP } from 'node:net';
 
 /** Manual version tag (kept in sync with package.json) used for the User-Agent. */
-export const KEENABLE_N8N_VERSION = '0.1.1';
+export const KEENABLE_N8N_VERSION = '0.1.2';
 
 const DEFAULT_BASE_URL = 'https://api.keenable.ai';
 

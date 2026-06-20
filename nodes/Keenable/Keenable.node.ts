@@ -147,16 +147,17 @@ export class Keenable implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		// Credentials are optional; absence simply means the keyless tier.
+		// The credential is optional. Only fetch it when one is actually attached:
+		// no credential → keyless tier. A real failure on an attached credential
+		// (decryption/permission) is left to propagate instead of being masked as
+		// a silent keyless fallback.
 		let config: KeenableConfig = {};
-		try {
+		if (this.getNode().credentials?.keenableApi) {
 			const creds = await this.getCredentials('keenableApi');
 			config = {
 				apiKey: (creds?.apiKey as string) || undefined,
 				baseUrl: (creds?.baseUrl as string) || undefined,
 			};
-		} catch {
-			config = {};
 		}
 
 		for (let i = 0; i < items.length; i++) {
