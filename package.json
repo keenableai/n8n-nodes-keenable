@@ -1,0 +1,53 @@
+{
+  "name": "n8n-nodes-keenable",
+  "version": "0.1.0",
+  "description": "Keenable web search + page fetch nodes for n8n. Keyless by default (1,000 req/hour); an API key raises the limits.",
+  "license": "MIT",
+  "author": "Keenable",
+  "homepage": "https://keenable.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keenableai/n8n-nodes-keenable.git"
+  },
+  "bugs": {
+    "url": "https://github.com/keenableai/n8n-nodes-keenable/issues"
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "keenable",
+    "web-search",
+    "search",
+    "fetch",
+    "scraping",
+    "ai-agent",
+    "ai-tool"
+  ],
+  "main": "index.js",
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/KeenableApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Keenable/Keenable.node.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc && npm run build:assets",
+    "build:assets": "mkdir -p dist/nodes/Keenable && cp nodes/Keenable/keenable.svg nodes/Keenable/Keenable.node.json dist/nodes/Keenable/",
+    "check": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.6.0"
+  }
+}

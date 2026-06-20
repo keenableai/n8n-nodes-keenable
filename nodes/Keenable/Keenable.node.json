@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-keenable.keenable",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["AI", "Data & Storage"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://keenable.ai/console"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://docs.keenable.ai/mcp-server"
+			}
+		]
+	}
+}
