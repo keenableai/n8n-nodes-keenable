@@ -4,7 +4,7 @@ name: Publish to npm
 # Release, or manually via workflow_dispatch. Provenance is attached
 # automatically. Configure the trusted publisher on npmjs.com (package settings
 # -> Trusted Publisher): GitHub Actions, repo keenableai/n8n-nodes-keenable,
-# workflow filename `publish.yml`.
+# workflow filename `publish.yml`, environment EMPTY.
 on:
   release:
     types: [published]
@@ -22,12 +22,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       # Trusted Publishing (OIDC) requires npm >= 11.5.1.
       - run: npm install -g npm@latest
-      - run: npm --version
+      - name: OIDC diagnostics
+        run: |
+          echo "npm: $(npm -v)"
+          echo "id-token request url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          echo "userconfig: ${NPM_CONFIG_USERCONFIG:-<unset>}"
+          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || echo "(no .npmrc)"
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      # No NODE_AUTH_TOKEN: npm authenticates via OIDC and attaches provenance.
+      # No registry-url/token: npm authenticates via OIDC against the default
+      # registry and attaches provenance.
       - run: npm publish --access public
