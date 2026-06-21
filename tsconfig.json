@@ -1,21 +1,26 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "lib": ["ES2021"],
-    "types": ["node"],
-    "rootDir": ".",
-    "outDir": "dist",
+    "strict": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2019",
+    "lib": ["es2019", "es2020", "es2022.error"],
+    "removeComments": true,
+    "useUnknownInCatchVariables": false,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "preserveConstEnums": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "incremental": true,
     "declaration": true,
     "sourceMap": true,
-    "strict": true,
     "skipLibCheck": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "types": ["node"],
+    "outDir": "./dist/"
   },
-  "include": ["credentials/**/*.ts", "nodes/**/*.ts", "index.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["credentials/**/*", "nodes/**/*", "nodes/**/*.json", "package.json", "index.ts"]
 }

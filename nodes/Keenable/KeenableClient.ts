@@ -1,20 +1,19 @@
 /**
  * Keenable REST client for the n8n node.
  *
- * Mirrors the contract used by the other Keenable integrations (langchain, Pi,
- * OpenClaw): keyless by default (`/v1/*\/public`), authenticated when a key is
- * present (`/v1/*`), HTTPS-only base URL, `X-Keenable-Title` attribution. The
- * REST surface is an internal detail of this package — n8n users go through the
- * Keenable node's Search / Fetch operations, never raw REST.
- *
- * Unlike the env-driven Pi client, configuration (api key + base URL) arrives
- * from the node's n8n credentials. No third-party runtime deps: global `fetch`.
+ * Uses n8n's `this.helpers.httpRequest` (no third-party deps, no Node built-ins
+ * — n8n Cloud forbids both) and surfaces failures as `NodeApiError` /
+ * `NodeOperationError`. Keyless by default (`/v1/*\/public`), authenticated when
+ * a key is present (`/v1/*`), HTTPS-only base URL, `X-Keenable-Title`
+ * attribution. The REST surface is internal — users go through the node's
+ * Search / Fetch operations.
  */
 
-import { isIP } from 'node:net';
+import type { IDataObject, IExecuteFunctions, JsonObject } from 'n8n-workflow';
+import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 /** Manual version tag (kept in sync with package.json) used for the User-Agent. */
-export const KEENABLE_N8N_VERSION = '0.1.3';
+export const KEENABLE_N8N_VERSION = '0.1.4';
 
 const DEFAULT_BASE_URL = 'https://api.keenable.ai';
 
@@ -46,8 +45,6 @@ export interface KeenableSearchParams {
 	site?: string;
 	published_after?: string;
 	published_before?: string;
-	acquired_after?: string;
-	acquired_before?: string;
 }
 
 export interface KeenableFetchResult {
@@ -60,24 +57,20 @@ export interface KeenableFetchResult {
 	[key: string]: unknown;
 }
 
-/**
- * Carries a user-actionable message (rate limits, auth, bad input) so the node
- * can surface it as a clean NodeApiError instead of an opaque crash.
- */
-export class KeenableError extends Error {}
-
 /** Resolve the API base URL, enforcing HTTPS (http only for loopback). */
-function resolveBaseUrl(config: KeenableConfig): string {
+function resolveBaseUrl(ctx: IExecuteFunctions, config: KeenableConfig): string {
 	const base = (config.baseUrl?.trim() || DEFAULT_BASE_URL).replace(/\/+$/u, '');
 	let parsed: URL;
 	try {
 		parsed = new URL(base);
 	} catch {
-		throw new KeenableError(`Keenable base URL must be a valid URL with a host, got ${base}`);
+		throw new NodeOperationError(
+			ctx.getNode(),
+			`Keenable base URL must be a valid URL with a host, got ${base}`,
+		);
 	}
 	if (parsed.hostname) {
 		if (parsed.protocol === 'https:') return base;
-		// Plain http only for local development against a loopback host.
 		if (
 			parsed.protocol === 'http:' &&
 			['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)
@@ -85,7 +78,10 @@ function resolveBaseUrl(config: KeenableConfig): string {
 			return base;
 		}
 	}
-	throw new KeenableError(`Keenable base URL must be an https:// URL with a host, got ${base}`);
+	throw new NodeOperationError(
+		ctx.getNode(),
+		`Keenable base URL must be an https:// URL with a host, got ${base}`,
+	);
 }
 
 /** Non-blank API key, or undefined to use the keyless public tier. */
@@ -104,153 +100,134 @@ function buildHeaders(apiKey: string | undefined): Record<string, string> {
 	return headers;
 }
 
-function withTimeout(timeoutMs: number): AbortSignal {
-	return AbortSignal.timeout(timeoutMs);
+/** Dependency-free private-IPv4 check (no node:net — forbidden on n8n Cloud). */
+function isPrivateIpv4(host: string): boolean {
+	const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u.exec(host);
+	if (!m) return false;
+	const p = m.slice(1).map(Number);
+	if (p.some((o) => o > 255)) return false;
+	return (
+		p[0] === 10 ||
+		p[0] === 127 ||
+		p[0] === 0 ||
+		(p[0] === 169 && p[1] === 254) || // link-local
+		(p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+		(p[0] === 192 && p[1] === 168) ||
+		(p[0] === 100 && p[1] >= 64 && p[1] <= 127) || // CGNAT 100.64.0.0/10
+		(p[0] === 198 && (p[1] === 18 || p[1] === 19)) || // benchmarking 198.18.0.0/15
+		p[0] >= 224 // multicast/reserved
+	);
 }
 
-function isPrivateIp(host: string): boolean {
-	const v = isIP(host);
-	if (v === 4) {
-		const p = host.split('.').map(Number);
-		return (
-			p[0] === 10 ||
-			p[0] === 127 ||
-			p[0] === 0 ||
-			(p[0] === 169 && p[1] === 254) || // link-local
-			(p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
-			(p[0] === 192 && p[1] === 168) ||
-			(p[0] === 100 && p[1] >= 64 && p[1] <= 127) || // CGNAT 100.64.0.0/10
-			(p[0] === 198 && (p[1] === 18 || p[1] === 19)) || // benchmarking 198.18.0.0/15
-			p[0] >= 224 // multicast/reserved
-		);
-	}
-	if (v === 6) {
-		const h = host.toLowerCase();
-		return h === '::1' || h === '::' || h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd');
-	}
-	return false;
+function isPrivateHost(rawHost: string): boolean {
+	const host = rawHost.toLowerCase();
+	if (host === 'localhost' || host === 'metadata.google.internal') return true;
+	if (isPrivateIpv4(host)) return true;
+	// IPv6 loopback / link-local / unique-local.
+	return host === '::1' || host === '::' || host.startsWith('fe80') || host.startsWith('fc') || host.startsWith('fd');
 }
 
 /**
  * Refuse obviously private/internal fetch targets before sending (SSRF). The
  * backend enforces this server-side too; the client guard avoids leaking an
- * internal hostname and is required by the integration contract.
+ * internal hostname.
  */
-function assertPublicFetchTarget(rawUrl: string): void {
+function assertPublicFetchTarget(ctx: IExecuteFunctions, rawUrl: string): void {
 	let parsed: URL;
 	try {
 		parsed = new URL(rawUrl);
 	} catch {
-		throw new KeenableError(`Not a valid URL: ${rawUrl}`);
+		throw new NodeOperationError(ctx.getNode(), `Not a valid URL: ${rawUrl}`);
 	}
 	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-		throw new KeenableError(`Refusing to fetch a non-http(s) URL: ${rawUrl}`);
+		throw new NodeOperationError(ctx.getNode(), `Refusing to fetch a non-http(s) URL: ${rawUrl}`);
 	}
 	const host = (parsed.hostname || '').toLowerCase();
-	if (!host) throw new KeenableError(`Refusing to fetch a URL with no host: ${rawUrl}`);
-	if (host === 'localhost' || host === 'metadata.google.internal' || isPrivateIp(host)) {
-		throw new KeenableError(`Refusing to fetch a private/internal host: ${host}`);
+	if (!host) throw new NodeOperationError(ctx.getNode(), `Refusing to fetch a URL with no host: ${rawUrl}`);
+	if (isPrivateHost(host)) {
+		throw new NodeOperationError(ctx.getNode(), `Refusing to fetch a private/internal host: ${host}`);
 	}
 }
 
-/** Map a non-2xx response to a helpful KeenableError; keyless 429 → upgrade hint. */
-async function raiseForStatus(response: Response, keyed: boolean): Promise<void> {
-	if (response.ok) return;
-	if (!keyed && response.status === 429) {
-		throw new KeenableError(
-			'Keenable keyless requests hit their rate limit. Add a Keenable API credential ' +
-				'(create a key at https://keenable.ai/console) to raise the limits.',
-		);
-	}
-	let detail = '';
-	try {
-		const body = (await response.json()) as Record<string, unknown>;
-		detail = String(body.message ?? body.error ?? body.detail ?? '');
-	} catch {
-		detail = (await response.text().catch(() => '')).trim();
-	}
-	const label =
-		{
-			401: 'Keenable authentication failed (401)',
-			402: 'Keenable: insufficient credits (402)',
-			429: 'Keenable rate limit exceeded (429)',
-		}[response.status] ?? `Keenable API error (${response.status})`;
-	throw new KeenableError(detail ? `${label}: ${detail}` : label);
-}
-
-async function readJsonObject(response: Response): Promise<Record<string, unknown>> {
-	let data: unknown;
-	try {
-		data = await response.json();
-	} catch {
-		throw new KeenableError('Keenable API returned a non-JSON response.');
-	}
-	if (!data || typeof data !== 'object' || Array.isArray(data)) {
-		throw new KeenableError('Unexpected (non-object) response from the Keenable API.');
-	}
-	return data as Record<string, unknown>;
+/** Status code from an httpRequest error, if present. */
+function statusOf(error: unknown): number | undefined {
+	const e = error as { httpCode?: unknown; statusCode?: unknown; response?: { statusCode?: unknown } };
+	const raw = e.httpCode ?? e.statusCode ?? e.response?.statusCode;
+	const n = Number(raw);
+	return Number.isFinite(n) ? n : undefined;
 }
 
 /** POST /v1/search (keyed) or /v1/search/public (keyless). */
 export async function keenableSearch(
+	ctx: IExecuteFunctions,
 	config: KeenableConfig,
 	params: KeenableSearchParams,
 ): Promise<KeenableSearchResult[]> {
 	const apiKey = resolveApiKey(config);
 	const path = apiKey ? '/v1/search' : '/v1/search/public';
-	const payload: Record<string, unknown> = { query: params.query, mode: params.mode ?? 'pro' };
-	for (const field of [
-		'site',
-		'published_after',
-		'published_before',
-		'acquired_after',
-		'acquired_before',
-	] as const) {
+	const body: IDataObject = { query: params.query, mode: params.mode ?? 'pro' };
+	for (const field of ['site', 'published_after', 'published_before'] as const) {
 		const value = params[field];
-		if (value) payload[field] = value;
+		if (value) body[field] = value;
 	}
 
-	let response: Response;
+	let data: IDataObject;
 	try {
-		response = await fetch(`${resolveBaseUrl(config)}${path}`, {
+		data = (await ctx.helpers.httpRequest({
 			method: 'POST',
-			headers: { ...buildHeaders(apiKey), 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload),
-			signal: withTimeout(DEFAULT_TIMEOUT_MS),
-		});
-	} catch (err) {
-		throw new KeenableError(`Could not reach the Keenable API: ${(err as Error).message}`);
+			url: `${resolveBaseUrl(ctx, config)}${path}`,
+			headers: buildHeaders(apiKey),
+			body,
+			json: true,
+			timeout: DEFAULT_TIMEOUT_MS,
+		})) as IDataObject;
+	} catch (error) {
+		if (!apiKey && statusOf(error) === 429) {
+			throw new NodeApiError(ctx.getNode(), error as JsonObject, {
+				message:
+					'Keenable keyless requests hit their rate limit. Add a Keenable API credential ' +
+					'(create a key at https://keenable.ai/console) to raise the limits.',
+			});
+		}
+		throw new NodeApiError(ctx.getNode(), error as JsonObject);
 	}
-	await raiseForStatus(response, Boolean(apiKey));
-	const data = await readJsonObject(response);
-	const results = data.results;
-	if (!Array.isArray(results)) {
-		throw new KeenableError('Unexpected response from the Keenable search API (no results array).');
+
+	if (!Array.isArray(data?.results)) {
+		throw new NodeOperationError(
+			ctx.getNode(),
+			'Unexpected response from the Keenable search API (no results array).',
+		);
 	}
-	return results as KeenableSearchResult[];
+	return data.results as KeenableSearchResult[];
 }
 
 /** GET /v1/fetch?url= (keyed) or /v1/fetch/public?url= (keyless). */
 export async function keenableFetch(
+	ctx: IExecuteFunctions,
 	config: KeenableConfig,
 	url: string,
 ): Promise<KeenableFetchResult> {
-	assertPublicFetchTarget(url);
+	assertPublicFetchTarget(ctx, url);
 	const apiKey = resolveApiKey(config);
 	const path = apiKey ? '/v1/fetch' : '/v1/fetch/public';
-	const endpoint = new URL(`${resolveBaseUrl(config)}${path}`);
-	endpoint.searchParams.set('url', url);
 
-	let response: Response;
 	try {
-		response = await fetch(endpoint, {
+		return (await ctx.helpers.httpRequest({
 			method: 'GET',
+			url: `${resolveBaseUrl(ctx, config)}${path}`,
 			headers: buildHeaders(apiKey),
-			signal: withTimeout(DEFAULT_TIMEOUT_MS),
-		});
-	} catch (err) {
-		throw new KeenableError(`Could not reach the Keenable API: ${(err as Error).message}`);
+			qs: { url },
+			json: true,
+			timeout: DEFAULT_TIMEOUT_MS,
+		})) as KeenableFetchResult;
+	} catch (error) {
+		if (!apiKey && statusOf(error) === 429) {
+			throw new NodeApiError(ctx.getNode(), error as JsonObject, {
+				message:
+					'Keenable keyless requests hit their rate limit. Add a Keenable API credential ' +
+					'(create a key at https://keenable.ai/console) to raise the limits.',
+			});
+		}
+		throw new NodeApiError(ctx.getNode(), error as JsonObject);
 	}
-	await raiseForStatus(response, Boolean(apiKey));
-	return (await readJsonObject(response)) as KeenableFetchResult;
 }

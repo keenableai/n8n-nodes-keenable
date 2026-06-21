@@ -4,13 +4,13 @@ import type {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes } from 'n8n-workflow';
 
 import {
 	keenableFetch,
 	keenableSearch,
-	KeenableError,
 	type KeenableConfig,
 	type KeenableSearchParams,
 } from './KeenableClient';
@@ -35,8 +35,8 @@ export class Keenable implements INodeType {
 		defaults: {
 			name: 'Keenable',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		usableAsTool: true,
 		credentials: [
 			{
@@ -53,16 +53,16 @@ export class Keenable implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Search',
-						value: 'search',
-						description: 'Search the web for pages matching a query',
-						action: 'Search the web',
-					},
-					{
 						name: 'Fetch Page',
 						value: 'fetch',
 						description: 'Fetch and extract the content of a web page as clean text',
 						action: 'Fetch page content',
+					},
+					{
+						name: 'Search',
+						value: 'search',
+						description: 'Search the web for pages matching a query',
+						action: 'Search the web',
 					},
 				],
 				default: 'search',
@@ -84,7 +84,11 @@ export class Keenable implements INodeType {
 				name: 'mode',
 				type: 'options',
 				options: [
-					{ name: 'Pro', value: 'pro', description: 'Standard high-quality search (keyless-friendly)' },
+					{
+						name: 'Pro',
+						value: 'pro',
+						description: 'Standard high-quality search (keyless-friendly)',
+					},
 					{
 						name: 'Realtime',
 						value: 'realtime',
@@ -103,14 +107,6 @@ export class Keenable implements INodeType {
 				displayOptions: { show: { operation: ['search'] } },
 				options: [
 					{
-						displayName: 'Site',
-						name: 'site',
-						type: 'string',
-						default: '',
-						placeholder: 'example.com',
-						description: 'Restrict results to a single domain',
-					},
-					{
 						displayName: 'Published After',
 						name: 'published_after',
 						type: 'string',
@@ -125,6 +121,14 @@ export class Keenable implements INodeType {
 						default: '',
 						placeholder: 'YYYY-MM-DD',
 						description: 'Only results published on or before this date',
+					},
+					{
+						displayName: 'Site',
+						name: 'site',
+						type: 'string',
+						default: '',
+						placeholder: 'example.com',
+						description: 'Restrict results to a single domain',
 					},
 				],
 			},
@@ -149,8 +153,7 @@ export class Keenable implements INodeType {
 
 		// The credential is optional. Only fetch it when one is actually attached:
 		// no credential → keyless tier. A real failure on an attached credential
-		// (decryption/permission) is left to propagate instead of being masked as
-		// a silent keyless fallback.
+		// (decryption/permission) is left to propagate.
 		let config: KeenableConfig = {};
 		if (this.getNode().credentials?.keenableApi) {
 			const creds = await this.getCredentials('keenableApi');
@@ -173,13 +176,13 @@ export class Keenable implements INodeType {
 						published_after: (filters.published_after as string) || undefined,
 						published_before: (filters.published_before as string) || undefined,
 					};
-					const results = await keenableSearch(config, params);
+					const results = await keenableSearch(this, config, params);
 					for (const result of results) {
 						returnData.push({ json: result as IDataObject, pairedItem: { item: i } });
 					}
 				} else {
 					const url = this.getNodeParameter('url', i) as string;
-					const result = await keenableFetch(config, url);
+					const result = await keenableFetch(this, config, url);
 					returnData.push({ json: result as IDataObject, pairedItem: { item: i } });
 				}
 			} catch (error) {
@@ -190,10 +193,7 @@ export class Keenable implements INodeType {
 					});
 					continue;
 				}
-				if (error instanceof KeenableError) {
-					throw new NodeApiError(this.getNode(), { message: error.message }, { itemIndex: i });
-				}
-				throw error;
+				throw new NodeApiError(this.getNode(), error as JsonObject, { itemIndex: i });
 			}
 		}
 

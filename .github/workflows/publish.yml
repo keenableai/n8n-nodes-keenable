@@ -24,13 +24,9 @@ jobs:
           node-version: 24
       # Trusted Publishing (OIDC) requires npm >= 11.5.1.
       - run: npm install -g npm@latest
-      - name: OIDC diagnostics
-        run: |
-          echo "npm: $(npm -v)"
-          echo "id-token request url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
-          echo "userconfig: ${NPM_CONFIG_USERCONFIG:-<unset>}"
-          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || echo "(no .npmrc)"
-      - run: npm ci
+      # No committed lockfile (overrides are forbidden in community nodes, so we
+      # don't pin the dev tree); use install, not ci.
+      - run: npm install
       - run: npm run lint
       - run: npm run build
       # No registry-url/token: npm authenticates via OIDC against the default
