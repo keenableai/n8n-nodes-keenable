@@ -13,7 +13,7 @@ import type { IDataObject, IExecuteFunctions, JsonObject } from 'n8n-workflow';
 import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 /** Manual version tag (kept in sync with package.json) used for the User-Agent. */
-export const KEENABLE_N8N_VERSION = '0.1.4';
+export const KEENABLE_N8N_VERSION = '0.1.5';
 
 const DEFAULT_BASE_URL = 'https://api.keenable.ai';
 
