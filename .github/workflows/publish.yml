@@ -4,7 +4,8 @@ name: Publish to npm
 # Release, or manually via workflow_dispatch. Provenance is attached
 # automatically. Configure the trusted publisher on npmjs.com (package settings
 # -> Trusted Publisher): GitHub Actions, repo keenableai/n8n-nodes-keenable,
-# workflow filename `publish.yml`, environment EMPTY.
+# workflow filename `publish.yml`, environment `npm`. The job runs in the `npm`
+# GitHub environment, so a publish waits for a required reviewer (KEE-1554).
 on:
   release:
     types: [published]
@@ -17,6 +18,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: npm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
