@@ -176,10 +176,12 @@ export async function keenableSearch(
 	}
 	const objective = params.objective?.trim();
 	if (objective) {
-		if (objective.length > MAX_OBJECTIVE_CHARS) {
+		// Count Unicode code points like the API does, not UTF-16 units.
+		const codePoints = [...objective].length;
+		if (codePoints > MAX_OBJECTIVE_CHARS) {
 			throw new NodeOperationError(
 				ctx.getNode(),
-				`Objective is ${objective.length} characters; the limit is ${MAX_OBJECTIVE_CHARS}. Shorten it to two or three sentences.`,
+				`Objective is ${codePoints} characters; the limit is ${MAX_OBJECTIVE_CHARS}. Shorten it to two or three sentences.`,
 			);
 		}
 		body.objective = objective;
