@@ -10,7 +10,7 @@ It can be used as a normal workflow node and as a **tool for the n8n AI Agent**.
 
 | Operation | What it does | Keenable tool |
 |---|---|---|
-| **Search** | Search the web for pages matching a query. Returns one item per result (`title`, `url`, `description`, `published_at`, …). Optional `site` / published-date filters. | `search_web_pages` |
+| **Search** | Search the web for pages matching a query. Returns one item per result (`title`, `url`, `description`, `published_at`, …). Optional `site` / published-date filters and `objective` (two or three sentences on what the search is for, max 1,000 characters; the ranker uses it with the query). | `search_web_pages` |
 | **Fetch Page** | Fetch a URL and extract clean, readable content (`content`, `title`, `author`, …). | `fetch_page_content` |
 
 ## Installation

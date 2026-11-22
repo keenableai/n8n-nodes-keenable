@@ -45,6 +45,7 @@ export interface KeenableSearchParams {
 	site?: string;
 	published_after?: string;
 	published_before?: string;
+	objective?: string;
 }
 
 export interface KeenableFetchResult {
@@ -170,6 +171,8 @@ export async function keenableSearch(
 		const value = params[field];
 		if (value) body[field] = value;
 	}
+	const objective = params.objective?.trim();
+	if (objective) body.objective = objective;
 
 	let data: IDataObject;
 	try {
