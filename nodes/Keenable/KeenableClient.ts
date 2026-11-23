@@ -201,7 +201,12 @@ export async function keenableSearch(
 	return data.results as KeenableSearchResult[];
 }
 
-/** GET /v1/fetch?url= (keyed) or /v1/fetch/public?url= (keyless). */
+/** One entry of POST /v1/fetch `results`: the page, or the error that page failed with. */
+interface KeenableFetchEntry extends KeenableFetchResult {
+	error?: { message?: string; status?: number };
+}
+
+/** POST /v1/fetch (keyed) or /v1/fetch/public (keyless), one URL; returns `results[0]`. */
 export async function keenableFetch(
 	ctx: IExecuteFunctions,
 	config: KeenableConfig,
@@ -211,15 +216,16 @@ export async function keenableFetch(
 	const apiKey = resolveApiKey(config);
 	const path = apiKey ? '/v1/fetch' : '/v1/fetch/public';
 
+	let data: { results?: KeenableFetchEntry[] };
 	try {
-		return (await ctx.helpers.httpRequest({
-			method: 'GET',
+		data = (await ctx.helpers.httpRequest({
+			method: 'POST',
 			url: `${resolveBaseUrl(ctx, config)}${path}`,
 			headers: buildHeaders(apiKey),
-			qs: { url },
+			body: { urls: [url] },
 			json: true,
 			timeout: DEFAULT_TIMEOUT_MS,
-		})) as KeenableFetchResult;
+		})) as { results?: KeenableFetchEntry[] };
 	} catch (error) {
 		if (!apiKey && statusOf(error) === 429) {
 			throw new NodeApiError(ctx.getNode(), error as JsonObject, {
@@ -230,4 +236,20 @@ export async function keenableFetch(
 		}
 		throw new NodeApiError(ctx.getNode(), error as JsonObject);
 	}
+
+	const entry = data?.results?.[0];
+	if (!entry) {
+		throw new NodeOperationError(
+			ctx.getNode(),
+			'Unexpected response from the Keenable fetch API (no results entry).',
+		);
+	}
+	if (entry.error) {
+		const status = entry.error.status ? ` (HTTP ${entry.error.status})` : '';
+		throw new NodeOperationError(
+			ctx.getNode(),
+			`Keenable could not fetch ${url}${status}: ${entry.error.message ?? 'unknown error'}`,
+		);
+	}
+	return entry;
 }
