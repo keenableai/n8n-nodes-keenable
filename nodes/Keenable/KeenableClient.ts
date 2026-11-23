@@ -181,7 +181,7 @@ export async function keenableSearch(
 		if (codePoints > MAX_OBJECTIVE_CHARS) {
 			throw new NodeOperationError(
 				ctx.getNode(),
-				`Objective is ${codePoints} characters; the limit is ${MAX_OBJECTIVE_CHARS}. Shorten it to two or three sentences.`,
+				`Objective is ${codePoints} characters; the limit is ${MAX_OBJECTIVE_CHARS}. Shorten it.`,
 			);
 		}
 		body.objective = objective;

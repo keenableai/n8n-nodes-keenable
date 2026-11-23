@@ -10,7 +10,7 @@ It can be used as a normal workflow node and as a **tool for the n8n AI Agent**.
 
 | Operation | What it does | Keenable tool |
 |---|---|---|
-| **Search** | Search the web for pages matching a query. Returns one item per result (`title`, `url`, `description`, `published_at`, …). Optional `site` / published-date filters and `objective` (two or three sentences on what the search is for, max 1,000 characters; the ranker uses it with the query). | `search_web_pages` |
+| **Search** | Search the web for pages matching a query. Returns one item per result (`title`, `url`, `description`, `published_at`, …). Optional `site` / published-date filters and `objective` (what the search is for, max 1,000 characters; the ranker uses it with the query). | `search_web_pages` |
 | **Fetch Page** | Fetch a URL and extract clean, readable content (`content`, `title`, `author`, …). | `fetch_page_content` |
 
 ## Installation
@@ -22,6 +22,10 @@ n8n-nodes-keenable
 ```
 
 Or via CLI in your n8n data folder: `npm install n8n-nodes-keenable`.
+
+## Using it as an AI Agent tool
+
+The node is usable as a tool. When an AI Agent fills the **Objective** field, give it `{{ $fromAI('objective', "Optional. Use for multi-step or ambiguous searches; omit for simple lookups. In one to three plain sentences, say what the search is for, what the query leaves out (who, where, when, which sources count) and what earlier searches found. Don't restate the question or include personal or confidential details. At most 1,000 characters.", 'string') }}`. The objective is sent to Keenable with the query, so keep personal or confidential details out of it.
 
 ## Credentials (optional)
 

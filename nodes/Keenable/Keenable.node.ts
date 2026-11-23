@@ -110,11 +110,10 @@ export class Keenable implements INodeType {
 						displayName: 'Objective',
 						name: 'objective',
 						type: 'string',
-						typeOptions: { rows: 3 },
 						default: '',
 						placeholder: 'Find the 2026 pricing of the Pro plan; official pages only.',
 						description:
-							'Two or three natural sentences, with no field labels and no line breaks, that cover: the exact facts, entities, numbers, dates or names a useful page must contain; task context the query does not state (who, where, when, eligibility, date window); which kinds of sources count or must be excluded; what is already established from earlier steps; and what is still unknown. Every sentence must be self-contained: name the entities, places, dates and figures explicitly, and never refer to the task, the clue, the question, above or earlier results. Do not paste the conversation, and do not include personal, confidential or sensitive information. At most 1,000 characters. The ranker scores it together with the query.',
+							'Optional: what the search is for, to improve ranking (max 1,000 characters)',
 					},
 					{
 						displayName: 'Published After',
