@@ -107,6 +107,15 @@ export class Keenable implements INodeType {
 				displayOptions: { show: { operation: ['search'] } },
 				options: [
 					{
+						displayName: 'Objective',
+						name: 'objective',
+						type: 'string',
+						default: '',
+						placeholder: 'Find the 2026 pricing of the Pro plan; official pages only.',
+						description:
+							'Optional: what the search is for, to improve ranking (max 1,000 characters)',
+					},
+					{
 						displayName: 'Published After',
 						name: 'published_after',
 						type: 'string',
@@ -175,6 +184,7 @@ export class Keenable implements INodeType {
 						site: (filters.site as string) || undefined,
 						published_after: (filters.published_after as string) || undefined,
 						published_before: (filters.published_before as string) || undefined,
+						objective: (filters.objective as string) || undefined,
 					};
 					const results = await keenableSearch(this, config, params);
 					for (const result of results) {

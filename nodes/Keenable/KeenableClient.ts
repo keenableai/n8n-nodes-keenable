@@ -45,6 +45,7 @@ export interface KeenableSearchParams {
 	site?: string;
 	published_after?: string;
 	published_before?: string;
+	objective?: string;
 }
 
 export interface KeenableFetchResult {
@@ -157,6 +158,9 @@ function statusOf(error: unknown): number | undefined {
 	return Number.isFinite(n) ? n : undefined;
 }
 
+/** Documented limit of the optional `objective` parameter. */
+const MAX_OBJECTIVE_CHARS = 1000;
+
 /** POST /v1/search (keyed) or /v1/search/public (keyless). */
 export async function keenableSearch(
 	ctx: IExecuteFunctions,
@@ -169,6 +173,18 @@ export async function keenableSearch(
 	for (const field of ['site', 'published_after', 'published_before'] as const) {
 		const value = params[field];
 		if (value) body[field] = value;
+	}
+	const objective = params.objective?.trim();
+	if (objective) {
+		// Count Unicode code points like the API does, not UTF-16 units.
+		const codePoints = [...objective].length;
+		if (codePoints > MAX_OBJECTIVE_CHARS) {
+			throw new NodeOperationError(
+				ctx.getNode(),
+				`Objective is ${codePoints} characters; the limit is ${MAX_OBJECTIVE_CHARS}. Shorten it.`,
+			);
+		}
+		body.objective = objective;
 	}
 
 	let data: IDataObject;
